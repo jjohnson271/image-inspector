@@ -79,10 +79,11 @@
   .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .item { display: flex; gap: 14px; align-items: flex-start; background: var(--card);
     border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-  .item .name { font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 400; }
+  .item .name { font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 400;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
   .item .info { font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums; min-width: 0; }
   .item { position: relative; }
-  .item .info { padding-right: 28px; white-space: nowrap; }
+  .item .info { padding-right: 28px; white-space: nowrap; flex: 1; min-width: 0; }
   .copy { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0;
     display: grid; place-items: center; border-radius: 7px; border: 1px solid transparent;
     background: transparent; color: var(--muted); }
@@ -260,7 +261,7 @@ function rowHTML(d, idx) {
   return `<div class="item">
     <button class="copy" data-idx="${idx}" title="Copy to clipboard" aria-label="Copy details for ${esc(d.file.name)}">${ICON_COPY}</button>
     ${thumb}<div class="info">
-    <div class="name">${esc(d.file.name)}</div>
+    <div class="name" title="${esc(d.file.name)}">${esc(d.file.name)}</div>
     ${esc(d.typeMain)}<br>${d.resMain}<br>${d.dpiMain}<br>${d.bitMain}</div></div>`;
 }
 
