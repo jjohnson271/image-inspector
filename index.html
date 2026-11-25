@@ -76,11 +76,19 @@
   details.help dd { margin: 2px 0 0; color: var(--muted); max-width: 80ch; }
   details.help pre { font: 12px/1.45 var(--mono); background: var(--bg); padding: 14px; border-radius: 8px; overflow: auto; max-height: 420px; }
 
-  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .item { display: flex; gap: 14px; align-items: flex-start; background: var(--card);
     border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
   .item .name { font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 400; }
   .item .info { font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums; min-width: 0; }
+  .item { position: relative; }
+  .item .info { padding-right: 28px; white-space: nowrap; }
+  .copy { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0;
+    display: grid; place-items: center; border-radius: 7px; border: 1px solid transparent;
+    background: transparent; color: var(--muted); }
+  .copy:hover, .copy:focus-visible { border-color: var(--line); color: var(--ink); background: var(--bg); }
+  .copy.done { color: var(--ok); }
+  .copy svg { width: 16px; height: 16px; }
   .item .thumb, .item .nothumb { width: 64px; height: 64px; flex: none; }
   .list .empty { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 </style>
@@ -100,7 +108,6 @@
 
   <div class="toolbar">
     <span class="count" id="count">No images yet</span>
-    <button id="csv" disabled>Download CSV</button>
     <button id="clear" disabled>Clear</button>
   </div>
 
@@ -233,10 +240,26 @@ function describe(file, info) {
   return out;
 }
 
+const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const ICON_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+function copyText(d) {
+  return [d.typeMain, d.resMain, d.dpiMain, d.bitMain].join("\n");
+}
+
+async function copyToClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return; } catch (e) {}
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+}
+
 function rowHTML(d, idx) {
   const thumb = `<img class="thumb" src="${urls[idx]}" alt="" loading="lazy"
     onerror="this.outerHTML='<div class=nothumb>No preview</div>'">`;
-  return `<div class="item">${thumb}<div class="info">
+  return `<div class="item">
+    <button class="copy" data-idx="${idx}" title="Copy to clipboard" aria-label="Copy details for ${esc(d.file.name)}">${ICON_COPY}</button>
+    ${thumb}<div class="info">
     <div class="name">${esc(d.file.name)}</div>
     ${esc(d.typeMain)}<br>${d.resMain}<br>${d.dpiMain}<br>${d.bitMain}</div></div>`;
 }
@@ -248,7 +271,7 @@ function render() {
     : `<div class="empty">Your images will appear here.</div>`;
   document.getElementById("count").textContent =
     results.length ? `${results.length} image${results.length > 1 ? "s" : ""}` : "No images yet";
-  document.getElementById("csv").disabled = document.getElementById("clear").disabled = !results.length;
+  document.getElementById("clear").disabled = !results.length;
 }
 
 async function handleFiles(list) {
@@ -262,24 +285,6 @@ async function handleFiles(list) {
   }
 }
 
-function downloadCSV() {
-  const head = ["File name","Detected type","Extension","Compression","File size (bytes)","Width (px)","Height (px)",
-    "Megapixels","DPI X","DPI Y","DPI source","Bit depth (bits per pixel)","Bits per channel","Channels",
-    "Colour model","Uncompressed size (bytes)"];
-  const q = v => { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const lines = [head.join(",")];
-  for (const d of results) {
-    const i = d.info;
-    lines.push([d.file.name, TYPE_LABEL[i.format] || "Unknown", d.ext, i.compression, d.file.size, i.width || "", i.height || "",
-      i.width ? (i.width * i.height / 1e6).toFixed(2) : "",
-      i.dpiX ? round1(i.dpiX) : 72, i.dpiY ? round1(i.dpiY) : 72, i.dpiSource,
-      i.bpp || "", i.bpc || "", i.channels || "", modelName(i), d.rawSize ? Math.round(d.rawSize) : ""].map(q).join(","));
-  }
-  const blob = new Blob([lines.join("\r\n")], { type: "text/csv" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = "image-details.csv"; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 
 /* ---------- wiring ---------- */
 const ready = initWasm().catch(err => {
@@ -294,7 +299,12 @@ input.addEventListener("change", () => { handleFiles([...input.files]); input.va
 drop.addEventListener("drop", e => handleFiles([...e.dataTransfer.files]));
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
-document.getElementById("csv").addEventListener("click", downloadCSV);
+document.getElementById("rows").addEventListener("click", async e => {
+  const btn = e.target.closest(".copy"); if (!btn) return;
+  await copyToClipboard(copyText(results[+btn.dataset.idx]));
+  btn.innerHTML = ICON_TICK; btn.classList.add("done"); btn.title = "Copied";
+  setTimeout(() => { btn.innerHTML = ICON_COPY; btn.classList.remove("done"); btn.title = "Copy to clipboard"; }, 1500);
+});
 document.getElementById("clear").addEventListener("click", () => {
   urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; results.length = 0; render();
 });
