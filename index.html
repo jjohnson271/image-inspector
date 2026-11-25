@@ -5,20 +5,299 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Image Inspector</title>
 <style>
-:root{color-scheme:light dark;--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--muted:#6b6a64;--line:#e3e1da;--accent:#2f5bd3}@media(prefers-color-scheme:dark){:root{--bg:#161615;--card:#1f1f1d;--ink:#ecebe6;--muted:#a09f98;--line:#33322f;--accent:#8aa8ff}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:32px 20px 64px}h1{font-size:28px;margin:0 0 8px}.lede{color:var(--muted);margin:0 0 20px}#drop{border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:36px 20px;text-align:center;cursor:pointer}#drop:hover,#drop:focus-visible,#drop.over{border-color:var(--accent);outline:none}#drop strong{display:block;font-size:18px}#drop span{color:var(--muted);font-size:14px}#file{display:none}.toolbar{display:flex;gap:10px;align-items:center;margin:20px 0 12px}.count{margin-right:auto;color:var(--muted)}button{font:inherit;font-size:14px;padding:7px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}button:disabled{opacity:.45;cursor:default}.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}.item,.empty{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}.item{display:flex;gap:14px;align-items:flex-start}.thumb,.nothumb{width:64px;height:64px;flex:none;border-radius:8px;object-fit:cover;background:var(--bg)}.nothumb{display:grid;place-items:center;color:var(--muted);font-size:11px;border:1px dashed var(--line)}.info{min-width:0}.name{font-size:13px;color:var(--muted);word-break:break-all;margin-bottom:4px}.empty{text-align:center;color:var(--muted);grid-column:1/-1}
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a64;
+    --line: #e3e1da; --accent: #2f5bd3; --accent-soft: #e8eefc;
+    --warn: #a2580b; --warn-soft: #fdf1e2; --ok: #2c7a4b;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --card: #1f1f1d; --ink: #ecebe6; --muted: #a09f98;
+      --line: #33322f; --accent: #8aa8ff; --accent-soft: #232b40;
+      --warn: #f0b070; --warn-soft: #3a2a17; --ok: #7fd1a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  .tag {
+    font: 12px var(--mono); color: var(--muted); border: 1px solid var(--line);
+    padding: 2px 8px; border-radius: 99px;
+  }
+  .tag.ready { color: var(--ok); border-color: currentColor; }
+  .lede { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
+
+  #drop {
+    border: 2px dashed var(--line); border-radius: 14px; background: var(--card);
+    padding: 36px 20px; text-align: center; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop:focus-visible, #drop.over { border-color: var(--accent); background: var(--accent-soft); outline: none; }
+  #drop strong { display: block; font-size: 18px; margin-bottom: 4px; }
+  #drop span { color: var(--muted); font-size: 14px; }
+  #file { display: none; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 12px; }
+  .toolbar .count { margin-right: auto; color: var(--muted); }
+  button {
+    font: inherit; font-size: 14px; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; border-color: var(--line); }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; background: var(--bg); }
+  td .main { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .sub { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  td .warn { color: var(--warn); background: var(--warn-soft); font-size: 12.5px; padding: 3px 8px; border-radius: 6px; display: inline-block; margin-top: 4px; }
+  .thumb {
+    width: 84px; height: 64px; border-radius: 8px; object-fit: cover; display: block;
+    background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 50% / 12px 12px;
+  }
+  .nothumb { width: 84px; height: 64px; border-radius: 8px; border: 1px dashed var(--line);
+    display: grid; place-items: center; text-align: center; font-size: 11px; color: var(--muted); padding: 4px; }
+  .name { word-break: break-all; font-weight: 600; }
+  .empty { text-align: center; color: var(--muted); padding: 28px; }
+
+  details.help { margin-top: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 18px; }
+  details.help summary { cursor: pointer; font-weight: 600; padding: 12px 0; }
+  details.help dl { margin: 0 0 16px; }
+  details.help dt { font-weight: 600; margin-top: 12px; }
+  details.help dd { margin: 2px 0 0; color: var(--muted); max-width: 80ch; }
+  details.help pre { font: 12px/1.45 var(--mono); background: var(--bg); padding: 14px; border-radius: 8px; overflow: auto; max-height: 420px; }
+
+  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .item { display: flex; gap: 14px; align-items: flex-start; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .item .name { font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 400; }
+  .item .info { font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums; min-width: 0; }
+  .item .thumb, .item .nothumb { width: 64px; height: 64px; flex: none; }
+  .list .empty { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 </style>
 </head>
-<body><main>
-<h1>Image Inspector</h1>
-<p class="lede">Choose one or more images to inspect their file type, resolution, and size. Image processing happens locally in your browser.</p>
-<div id="drop" tabindex="0" role="button" aria-label="Choose images to upload"><strong>Drop images here or click to choose</strong><span>PNG · JPEG · GIF · BMP · WebP · TIFF · AVIF · HEIC</span></div>
-<input type="file" id="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff">
-<div class="toolbar"><span class="count" id="count">No images yet</span><button id="csv" disabled>Download CSV</button><button id="clear" disabled>Clear</button></div>
-<div class="list" id="rows"><div class="empty">Your images will appear here.</div></div>
+<body>
+<main>
+  <header>
+    <h1>Image Inspector</h1>
+  </header>
+  <p class="lede">Upload one or more images to see their file type, resolution, DPI and bit depth.</p>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Choose images to upload">
+    <strong>Drop images here or click to choose</strong>
+    <span>PNG · JPEG · GIF · BMP · WebP · TIFF · AVIF · HEIC, and you can select several at once</span>
+  </div>
+  <input type="file" id="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff">
+
+  <div class="toolbar">
+    <span class="count" id="count">No images yet</span>
+    <button id="csv" disabled>Download CSV</button>
+    <button id="clear" disabled>Clear</button>
+  </div>
+
+  <div class="list" id="rows"><div class="empty">Your images will appear here.</div></div>
+
+
 </main>
+
 <script>
-const files=[];const urls=[];const $=id=>document.getElementById(id);const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(2)+' MB';
-function render(){ $('count').textContent=files.length?`${files.length} image${files.length===1?'':'s'}`:'No images yet';$('csv').disabled=$('clear').disabled=!files.length;$('rows').innerHTML=files.length?files.map((f,i)=>`<article class="item"><img class="thumb" src="${urls[i]}" alt=""><div class="info"><div class="name"></div><b>${f.type||'Unidentified image'}</b><br>${f.width&&f.height?`${f.width.toLocaleString()} × ${f.height.toLocaleString()} pixels`: 'Dimensions unavailable in this browser'}<br>${size(f.file.size)}<br>DPI and bit depth are not exposed by the browser's image decoder.</div></article>`).join(''):'<div class="empty">Your images will appear here.</div>';document.querySelectorAll('.name').forEach((el,i)=>el.textContent=files[i].file.name)}
-async function add(list){for(const file of list){const url=URL.createObjectURL(file);urls.push(url);const entry={file,width:0,height:0};try{const image=new Image();image.src=url;await image.decode();entry.width=image.naturalWidth;entry.height=image.naturalHeight}catch{}files.push(entry);render()}}
-const drop=$('drop'),input=$('file');drop.addEventListener('click',()=>input.click());drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click()}});input.addEventListener('change',()=>{add(input.files);input.value=''});for(const t of ['dragenter','dragover'])drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')});for(const t of ['dragleave','drop'])drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')});drop.addEventListener('drop',e=>add(e.dataTransfer.files));document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>e.preventDefault());$('clear').addEventListener('click',()=>{urls.forEach(URL.revokeObjectURL);urls.length=files.length=0;render()});$('csv').addEventListener('click',()=>{const q=v=>{v=String(v??'');return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};const lines=[['File name','Detected type','File size (bytes)','Width (px)','Height (px)'].join(','),...files.map(x=>[x.file.name,x.file.type,x.file.size,x.width||'',x.height||''].map(q).join(','))];const url=URL.createObjectURL(new Blob([lines.join('\r\n')],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download='image-details.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
-</script></body></html>
+const WASM_B64 = "AGFzbQEAAAABEwRgAAF/YAF/AX9gA39/fwBgAAADCQgAAAECAwMBAQQFAXABAQEFAwEAAgYIAX8BQZCJBAsHKwQGbWVtb3J5AgAJaW5wdXRfcHRyAAAKcmVzdWx0X3B0cgABBXBhcnNlAAIK92cICABBkImEgAALCABBoIiAgAALozMEBH8CfAd/AXxBACEBQQAgADYC5IiAgABBAEGQiYSAADYC4IiAgABBAEIANwPYiICAAEEAQgA3A9CIgIAAQQBCADcDyIiAgABBAEIANwPAiICAAEEAQgA3A7iIgIAAQQBCADcDsIiAgABBAEIANwOoiICAAEEAQgA3A6CIgIAAQQBCADcD8IiAgABBAEIANwP4iICAAEEAQQA6AOiIgIAAAkAgAEEMSQ0AAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQEEALQCQiYSAACIBQb5/ag4RAgkJCQkBCQQJCQkFCQkJCQMACwJAIAFB/wFGDQAgAUGJAUcNCUGQiYSAAC0AAUHQAEcNCUGQiYSAAC0AAkHOAEcNCUGQiYSAAC0AA0HHAEcNCUEAIQJBAEEBNgLMiICAAEEAQQE2AqCIgIAAQQAhAUEAIQNBACEEAkACQAJAAkAgAEERSQ0AQZCJhIAALQAQQQh0IQMCQCAAQRFHDQBBACEBQQAhBAwBC0GQiYSAAC0AESEEAkAgAEETTw0AQQAhAQwBC0GQiYSAAC0AEkEIdCEBIABBE0cNAQtBACAEIANyQRB0IAFyNgKkiICAAAwBC0EAIQJBACADIARyQRB0QZCJhIAALQATciABcjYCpIiAgAAgAEEVTw0BC0EAIQMMFwtBkImEgAAtABRBCHQhAyAAQRVGDRZBkImEgAAtABUhASAAQRdJDRdBkImEgAAtABZBCHQhAiAAQRdGDRdBACADIAFyQRB0QZCJhIAALQAXciACcjYCqIiAgABBACEBAkACQCAAQRlJDQBBkImEgAAtABghASAAQRlGDQBBASEDAkACQAJAAkACQEGQiYSAAC0AGQ4HBQQAAQIEAwQLQQBBAjYCxIiAgABBAyEDDAMLQQBBAzYCxIiAgAAMAgtBAEKBgICAEDcCxIiAgABBAiEDDAELQQBCgoCAgBA3AsSIgIAAQQQhAwtBACADNgKwiICAAEEAIAE2AqyIgIAAIAMgAWwhAQwBC0EAQQE2ArCIgIAAQQAgATYCrIiAgABBAEEBNgLEiICAAAtBACABNgK0iICAAAwYC0GQiYSAAC0AAUHYAUcNCEEAQQI2AsyIgIAAQQBBAjYCoIiAgABEAAAAAAAAAAAhBUEGIQNEAAAAAAAAAAAhBkEAIQdBAiEBAkADQAJAAkAgACABTQ0AQZCJhIAAIAFqIgQtAABB/wFGDQELIAFBBWohAyABQQFqIQEgAyAATQ0BDAILQQAhCEEAIQICQAJAIAAgAUEBaiIJTQ0AAkACQCAEQQFqLQAAIgJBAUYNACACQdgBRg0AAkAgAkH/AUcNACAJIQEMBAsgAkH4AXFB0AFHDQELIAFBAmohAQwCCyACQad+akECSQ0DCwJAIAAgAUECak0NACAEQQJqLQAAQQh0IQgLQQAhCQJAIAAgAUEDak0NACAEQQNqLQAAIQkLAkACQAJAAkACQCACQaB+ag4CAQADCyADIAAgAyAASxshCgwBCyADIAAgAyAASxshCgJAIAMgAE8NAEGQiYSAACADai0AAEHKAEcNACAAIANBAWoiC0YNAEGQiYSAACALai0AAEHGAEcNACADQQJqIgsgCkYNAEGQiYSAACALai0AAEHJAEcNACADQQNqIgsgCkYNAEGQiYSAACALai0AAEHGAEcNAAJAIAAgAUEIak0NACAEQQhqLQAADQELQQAhA0EAIQICQCAAIAFBC2pNDQAgBEELai0AACECCwJAIAAgAUEMak0NACAEQQxqLQAAQQh0IQMLQQAhCkEAIQsCQCAAIAFBDWpNDQAgBEENai0AACELCwJAIAAgAUEOak0NACAEQQ5qLQAAQQh0IQoLQQAhDAJAIAAgAUEPak0NACAEQQ9qLQAAIQwLIAsgA3IhAyAMIApyIQQCQAJAIAJB/wFxQX9qDgIAAQULIAS4IQYgA7ghBUEBIQcMBAsgBLhEUrgehetRBECiIQYgA7hEUrgehetRBECiIQVBASEHDAMLIAJB4QFHDQELIAMgCkYNAEGQiYSAACADai0AAEHFAEcNACADQQFqIgsgCkYNAEGQiYSAACALai0AAEH4AEcNACADQQJqIgsgCkYNAEGQiYSAACALai0AAEHpAEcNACADQQNqIgsgCkYNAEGQiYSAACALai0AAEHmAEcNAAJAIAAgAUEIak0NACAEQQhqLQAADQELIAFBCmpBACAJIAhyIgBBeGoiAyADIABLG0EAEIOAgIAAQQAoAuSIgIAAIQAMAQsgAkH7AXEiC0HIAUYNACACQcQBRg0AIAJB8AFxQcABRw0AQQAhCkEAIQICQCAAIAFBCWpNDQAgBEEJai0AACECCwJAIAAgA00NAEGQiYSAACADai0AACEKC0EAIQNBACAKNgKsiICAAEEAIQwCQCAAIAFBBWpNDQAgBEEFai0AAEEIdCEMCwJAIAAgAUEGak0NACAEQQZqLQAAIQMLQQAhDUEAIAMgDHI2AqiIgIAAQQAhAwJAIAAgAUEHak0NACAEQQdqLQAAQQh0IQMLAkAgACABQQhqTQ0AIARBCGotAAAhDQtBACACNgKwiICAAEEAIAogAmw2ArSIgIAAQQAgDSADcjYCpIiAgABBAEEBQQRBAiACQQRGGyACQQFGGzYCxIiAgAACQCALQb1+ag4JAAEBAQEBAQEAAQtBAEEBNgLMiICAAAsgCSAIaiABakECaiEBCyABQQRqIgMgAE0NAAsLIAdFDRggBUQAAAAAAAAAAGUNGEEAQQI2AsCIgIAAAkACQCAFRAAAAAAAAFlAokQAAAAAAADgP6AiDplEAAAAAAAA4EFjRQ0AIA6qIQAMAQtBgICAgHghAAtBACAANgK4iICAAAJAIAUgBiAGRAAAAAAAAAAAZRtEAAAAAAAAWUCiRAAAAAAAAOA/oCIFmUQAAAAAAADgQWNFDQBBACAFqjYCvIiAgAAMGQtBAEGAgICAeDYCvIiAgAAMGAtBkImEgAAtAAFByQBHDQdBkImEgAAtAAJBxgBHDQdBkImEgAAtAANBOEcNB0EAQQE2AsyIgIAAQQBBAzYCoIiAgABBAEEDNgLEiICAAEEAQQE2ArCIgIAAQQBBkImEgAAvAAY2AqSIgIAAQQBBkImEgAAvAAg2AqiIgIAAQQBBkImEgAAsAAoiAkEHcSIBQQFqIgcgAkF/SiIDGyEEQQ1BBiABdEENaiADGyIBIABPDRECQANAAkBBkImEgAAgAWotAAAiA0EhRg0AIANBLEYNAgwUCwJAIAFBAWoiAyAATw0AQZCJhIAAIANqLQAAQfkBRw0AIAFBA2oiAyAATw0AQZCJhIAAIANqLQAAQQFxRQ0AQQBBATYCyIiAgAALAkAgAUECaiIBIABPDQADQEGQiYSAACABai0AACIDRQ0BIAEgA2pBAWoiASAASQ0ACwsgAUEBaiIBIABJDQAMEwsLIAFBCWoiASAATw0FIAchBCACQX9MDRFBkImEgAAgAWosAAAiAEF/Sg0SIABBB3FBAWohBAwTC0GQiYSAAC0AAUHNAEcNBkEAIQNBAEEENgKgiICAAAJAAkACQAJAIABBD08NAEEAIQQMAQtBkImEgAAtAA4hBCAAQQ9HDQELQQAhAkEAIQEMAQtBkImEgAAtAA9BCHQhAgJAIABBEU8NAEEAIQEMAQtBkImEgAAtABAhAyAAQRFGDQZBkImEgAAtABFBCHQhAQsCQCABIANyQRB0IAIgBHJyIgNBDEcNAEEAIQEgAEETSQ0LQZCJhIAALQASIQEgAEETRg0LQQAhA0EAQZCJhIAALQATQQh0IAFyNgKkiICAACAAQRVJDQxBkImEgAAtABQhAyAAQRVGDQxBACEEQQBBkImEgAAtABVBCHQgA3I2AqiIgIAAQQAhASAAQRlJDQ1BkImEgAAtABghBEEAIQEgAEEZRg0NQZCJhIAALQAZQQh0IQEMDQsCQCAAQRdJDQBBkImEgAAtABYhByAAQRdGDQhBkImEgAAtABdBCHQhAQJAIABBGEsNACABIAdyIQcMCQtBkImEgAAtABghAkEAIQQCQCAAQRlGDQBBkImEgAAtABlBCHQhBAsgBCACckEQdCAHciABciEHDAgLQQAhAQJAAkACQAJAIABBEksNAEEAIQkMAQtBkImEgAAtABIhCSAAQRNHDQELQQAhB0EAIQgMAQtBkImEgAAtABNBCHQhCAJAIABBFU8NAEEAIQcMAQtBkImEgAAtABQhAUEAIQcgAEEWRg0JC0EAIQoMCQtBkImEgAAtAAFByQBHDQVBkImEgAAtAAJBxgBHDQVBkImEgAAtAANBxgBHDQVBkImEgAAtAAhB1wBHDQVBkImEgAAtAAlBxQBHDQVBkImEgAAtAApBwgBHDQVBkImEgAAtAAtB0ABHDQUQhICAgAAMFQtBkImEgAAtAAFByQBHDQRBkImEgAAtAAJBKkcNBEGQiYSAAC0AA0UNAQwEC0GQiYSAAC0AAUHNAEcNA0GQiYSAAC0AAg0DQZCJhIAALQADQSpHDQMLQQBBBjYCoIiAgABBACAAQQEQg4CAgABBAC0A6IiAgABFDRJBACsD+IiAgAAiBUQAAAAAAAAAAGUNEkEAQQU2AsCIgIAAAkACQCAFRAAAAAAAAFlAokQAAAAAAADgP6AiBplEAAAAAAAA4EFjRQ0AIAaqIQAMAQtBgICAgHghAAtBACAANgK4iICAAAJAIAVBACsD8IiAgAAiBiAGRAAAAAAAAAAAZRtEAAAAAAAAWUCiRAAAAAAAAOA/oCIFmUQAAAAAAADgQWNFDQBBACAFqjYCvIiAgAAMEwtBAEGAgICAeDYCvIiAgAAMEgsgByEEIAJBf0wNCwwMC0EAIQFBACEJQQAhB0EAIQhBACEKIANBEHQgBHIgAnIiA0EMRg0EDAMLQZCJhIAALQAEQeYARw0PQZCJhIAALQAFQfQARw0PQZCJhIAALQAGQfkARw0PQZCJhIAALQAHQfAARw0PEIWAgIAADA8LQZCJhIAALQATQQh0IQhBkImEgAAtABQhAUGQiYSAAC0AEiEJC0GQiYSAAC0AFUEIdCEKC0EAIQRBACAIIAlqIAogAWpBEHRqNgKkiICAAEEAIAcgB0EfdSIBcyABazYCqIiAgABBACEHQQAhAUEAIQhBACECAkAgAEEdSQ0AQZCJhIAALQAcIQFBACEEAkACQCAAQR1GDQBBkImEgAAtAB1BCHQgAXIhAUEAIQQgAEEfSQ0AQZCJhIAALQAeIQdBACEEIABBH0YNAUGQiYSAAC0AH0EIdCEIQQAhAgJAIABBIU8NAEEAIQQMAwtBkImEgAAtACAhBCAAQSFGDQJBkImEgAAtACFBCHQhAgwCC0EAIQcLQQAhCEEAIQILQQMhCQJAAkAgAiAEQf8BcXJBEHQgCCAHQf8BcXJyIgQOBAEAAAEAC0ECQQEgBEEERhshCQtBACEIQQAgCTYCzIiAgABBACEEQQAhAkEAIQcCQAJAAkACQAJAIABBJ0kNAEGQiYSAAC0AJiECAkAgAEEnRw0AQQAhBEEAIQcMAQtBkImEgAAtACdBCHQhBwJAIABBKU8NAEEAIQQMAQtBkImEgAAtACghBCAAQSlHDQELIARBEHQgAnIgB2ohBEEAIQcMAQsgBEEQdEGQiYSAAC0AKUEYdHIgAnIgB3IhBEEAIQgCQCAAQStPDQBBACEHDAELQZCJhIAALQAqIQdBACEIIABBK0cNAQtBACEJQQAhAgwBC0GQiYSAAC0AK0EIdCEJQQAhAgJAIABBLU8NAEEAIQgMAQtBkImEgAAtACwhCCAAQS1GDQBBkImEgAAtAC1BCHQhAgsCQCAERQ0AIAS4RKYKRiV1Apo/oiIFRAAAAAAAAAAAZQ0AQQBBBDYCwIiAgAACQAJAIAVEAAAAAAAAWUCiRAAAAAAAAOA/oCIGmUQAAAAAAADgQWNFDQAgBqohBAwBC0GAgICAeCEEC0EAIAQ2AriIgIAAAkACQCAFIAkgB0H/AXFyIAIgCEH/AXFyQRB0crhEpgpGJXUCmj+iIgYgBkQAAAAAAAAAAGUbRAAAAAAAAFlAokQAAAAAAADgP6AiBZlEAAAAAAAA4EFjRQ0AIAWqIQQMAQtBgICAgHghBAtBACAENgK8iICAAAsgA0E4SQ0DIAFBIEcNA0EAIQFBACEEQQAhAkEAIQMCQCAAQcMASQ0AQZCJhIAALQBCIQRBACEBAkAgAEHDAEcNAEEAIQJBACEDDAELQZCJhIAALQBDQQh0IQJBACEDAkAgAEHFAE8NAEEAIQEMAQtBkImEgAAtAEQhASAAQcUARg0AQZCJhIAALQBFQQh0IQMLQQMhAAJAIAMgAUH/AXFyQRB0QQAgAiAEQf8BcXJrRg0AQQBBATYCyIiAgABBBCEAC0EAQSA2ArSIgIAAQQghAQwEC0EAIQNBACABNgKkiICAAAtBACEEQQAgAzYCqIiAgABBACEBC0EAQQM2AsyIgIAAIAEgBEH/AXFyIQELQQAgATYCtIiAgAACQCABQQlPDQBBASEAQQMhAwwCC0EFQQggAUEQRhshAUEDIQALQQIhAwtBACAANgKwiICAAEEAIAM2AsSIgIAAQQAgATYCrIiAgAAMBgsgBA0BC0EIIQQLQQAgBDYCtIiAgABBACAENgKsiICAAAwDC0EAIQELQQBBATYCxIiAgABBAEKAgICAEDcCrIiAgABBACABIANyQRB0IAJyNgKoiICAAEEAQQA2ArSIgIAAIABBFEkNAQsgAEF0aiEJQRQhCkEIIQEDQEEAIQMCQCABIABPDQBBkImEgAAgAWotAABBCHQhAwtBACEEQQAhAgJAIAFBAWoiByAATw0AQZCJhIAAIAdqLQAAIQILAkAgAUECaiIHIABPDQBBkImEgAAgB2otAABBCHQhBAtBACEHAkAgAUEDaiIIIABPDQBBkImEgAAgCGotAAAhBwsgByAEciACIANyQRB0ciEDAkACQCABQQRqIgQgAE8NAAJAAkACQEGQiYSAACAEai0AACIEQZB/ag4FAAMDAwECCyABQQVqIgQgAE8NAkGQiYSAACAEai0AAEHIAEcNAiABQQZqIgQgAE8NAkGQiYSAACAEai0AAEHZAEcNAiABQQdqIgQgAE8NAkGQiYSAACAEai0AAEHzAEcNAiABQRBqIgQgAE8NAkGQiYSAACAEai0AAEEBRw0CQQAhBEEAIQICQCABQQhqIgcgAE8NAEGQiYSAACAHai0AAEEIdCECCwJAIAFBCWoiByAATw0AQZCJhIAAIAdqLQAAIQQLQQAhB0EAIQgCQCABQQpqIgsgAE8NAEGQiYSAACALai0AAEEIdCEICwJAIAFBC2oiCyAATw0AQZCJhIAAIAtqLQAAIQcLIAggBCACckEQdHIhBEEAIQJBACEIAkAgCiAATw0AQZCJhIAAIApqLQAAQQh0IQgLIAcgBHIhBAJAIAFBDWoiByAATw0AQZCJhIAAIAdqLQAAIQILIAS4IQVBACEEQQAhBwJAIAFBDmoiCiAATw0AQZCJhIAAIApqLQAAQQh0IQcLIAVEpgpGJXUCmj+iIQUCQCABQQ9qIgogAE8NAEGQiYSAACAKai0AACEECyAFRAAAAAAAAAAAZQ0CQQBBATYCwIiAgAACQAJAIAVEAAAAAAAAWUCiRAAAAAAAAOA/oCIGmUQAAAAAAADgQWNFDQAgBqohCgwBC0GAgICAeCEKC0EAIAo2AriIgIAAAkAgBSAEIAcgAiAIckEQdHJyuESmCkYldQKaP6IiBiAGRAAAAAAAAAAAZRtEAAAAAAAAWUCiRAAAAAAAAOA/oCIFmUQAAAAAAADgQWNFDQBBACAFqjYCvIiAgAAMAwtBAEGAgICAeDYCvIiAgAAMAgsgAUEFaiIEIABPDQFBkImEgAAgBGotAABB0gBHDQEgAUEGaiIEIABPDQFBkImEgAAgBGotAABBzgBHDQEgAUEHaiIEIABPDQFBkImEgAAgBGotAABB0wBHDQFBAEEBNgLIiICAAAwBCyAEQckARw0AIAFBBWoiBCAATw0AAkBBkImEgAAgBGoiBC0AAEHEAEcNACABQQZqIgIgAE8NAEGQiYSAACACai0AAEHBAEcNACABQQdqIgIgAE8NAEGQiYSAACACai0AAEHUAEYNBAsgBC0AAEHFAEcNACABQQZqIgQgAE8NAEGQiYSAACAEai0AAEHOAEcNACABQQdqIABPDQBBkImEgAAgAWpBB2otAABBxABGDQMgAyAJIAFrTQ0BDAMLIAMgCSABa0sNAgsgASADaiIDQQxqIQEgA0EYaiIKIABNDQALC0EAKAKgiICAACEBQQAoAsCIgIAADQBBAC0A6IiAgABBAXFFDQAgAUEGRg0AQQArA/iIgIAAIgVEAAAAAAAAAABlDQBBAEEDNgLAiICAAAJAAkAgBUQAAAAAAABZQKJEAAAAAAAA4D+gIgaZRAAAAAAAAOBBY0UNACAGqiEADAELQYCAgIB4IQALQQAgADYCuIiAgAACQAJAIAVBACsD8IiAgAAiBiAGRAAAAAAAAAAAZRtEAAAAAAAAWUCiRAAAAAAAAOA/oCIFmUQAAAAAAADgQWNFDQAgBaohAAwBC0GAgICAeCEAC0EAIAA2AryIgIAACyABC5IKBAl/AnwLfwF8AkBBACgC5IiAgAAiAyAATQ0AQQAgADYCgImAgABBACADIABrIgQgASAEIAFJGyIBNgKEiYCAACABQQhJDQACQAJAAkBBACgC4IiAgAAiBCAAai0AAEG3f2oOBQADAwMBAwtBASEFIAMgAEEBaiIGTQ0CIAQgBmotAABByQBGDQEMAgsgAyAAQQFqIgZNDQFBACEFIAQgBmotAABBzQBHDQELQQAgBToAiImAgABBBBCGgICAACIHQX1LDQAgB0ECaiABSw0AIAcgAGohCAJAAkAgBUUNAEEAIQBBACEGAkAgAyAITQ0AIAQgCGotAAAhBgsCQCADIAhBAWoiCU0NACAEIAlqLQAAQQh0IQALIAAgBnIhAAwBC0EAIQBBACEGAkAgAyAITQ0AIAQgCGotAABBCHQhBgsCQCADIAhBAWoiCU0NACAEIAlqLQAAIQALIAAgBnIhAAsgAEH/X2pBgGBJDQAgAEEMbCEJIAQgCGohCkEBIQtEAAAAAAAAAAAhDEEAIQBEAAAAAAAAAAAhDUEAIQ5BAiEPQQEhEEEBIRFBACESQQAhE0ECIRQDQAJAIAcgAGoiBEECaiIGQX1LDQAgBEEEaiABSw0AIAggAGoiFUECaiEWAkACQCAFRQ0AQQAhF0EAIRgCQCADIBZNDQAgCiAAakECai0AACEYCwJAIAMgFUEDak0NACAKIABqQQNqLQAAQQh0IRcLIBcgGHIhFQwBC0EAIRdBACEYAkAgAyAWTQ0AIAogAGpBAmotAABBCHQhGAsCQCADIBVBA2pNDQAgCiAAakEDai0AACEXCyAXIBhyIRULAkACQAJAAkACQAJAAkACQAJAAkAgFUGAfmoOUwABAgMKCgQKCgoKCgoKCgoKCgoKCgUKCgoKBgcKCgoKCgoKCgoKCgoICgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoJCgsgBhCHgICAACETDAkLIAYQh4CAgAAhEgwICyAGEIeAgIAAIREMBwsgBhCHgICAACELDAYLIAYQh4CAgAAhDwwFCyAGEIeAgIAAIRAMBAsCQCAEQQpqEIaAgIAAIgRBBGoQhoCAgAAiBg0ARAAAAAAAAAAAIQwMBAsgBBCGgICAALggBrijIQwMAwsCQCAEQQpqEIaAgIAAIgRBBGoQhoCAgAAiBg0ARAAAAAAAAAAAIQ0MAwsgBBCGgICAALggBrijIQ0MAgsgBhCHgICAACEUDAELQQEhDgsgCSAAQQxqIgBHDQALAkAgDEQAAAAAAAAAAGRFDQAgFEEBRg0AQQBBAToA6IiAgABBAERSuB6F61EEQEQAAAAAAADwPyAUQQNGGyIZIA0gDCANRAAAAAAAAAAAZBuiOQPwiICAAEEAIBkgDKI5A/iIgIAACyACRQ0AQQAgEDYCsIiAgABBACASNgKoiICAAEEAIBM2AqSIgIAAQQEhAEEAIBFBASARQQFLGyIDNgKsiICAAEEAIAMgEGw2ArSIgIAAAkAgD0ECSQ0AQQMhACAPQQNGDQBBBEECIA9BBUYbIQALQQAgADYCxIiAgAACQAJAIA4NAAJAIABBAkcNACAQQQNLDQELIABBAUcNASAQQQJJDQELQQBBATYCyIiAgAALQQMhAAJAIAtBAUYNAEECQQJBASALQX5xQQZGGyALQcyQAkYbIQALQQAgADYCzIiAgAAPCwuIDQELf0EAQQI2AsyIgIAAQQBBAjYCxIiAgABBAEKIgICAMDcCrIiAgABBAEEFNgKgiICAAEEAKALkiICAACEAQQwhAQJAA0AgAUEIaiICIABLDQFBACEDQQAoAuCIgIAAIQRBACEFAkAgACABQQRqIgZNDQAgBCAGai0AACEFCwJAIAAgAUEFaiIGTQ0AIAQgBmotAABBCHQhAwtBACEGQQAhBwJAIAAgAUEGaiIITQ0AIAQgCGotAAAhBwsCQCAAIAFBB2oiCE0NACAEIAhqLQAAQQh0IQYLIAYgB3JBEHQgAyAFcnIhAwJAIAEgAE8NACABIAAgASAASxshBwJAIAQgAWoiBi0AAEHWAEcNACAAIAFBAWoiCEYNACAEIAhqLQAAQdAARw0AIAFBAmoiCCAHRg0AIAQgCGotAABBOEcNACABQQNqIgggB0YNACAEIAhqLQAAQSBHDQBBACgCpIiAgAANAUEAIQZBACEHAkAgACABQQ5qIghNDQAgBCAIai0AACEHCwJAIAAgAUEPaiIITQ0AIAQgCGotAABBCHQhBgtBACEIQQAgBkGA/gBxIAdyNgKkiICAAEEAIQYCQCAAIAFBEGoiB00NACAEIAdqLQAAIQYLAkAgACABQRFqIgFNDQAgBCABai0AAEEIdCEIC0EAIAhBgP4AcSAGcjYCqIiAgAAMAQsCQCAGLQAAQdYARw0AIAAgAUEBaiIIRg0AIAQgCGotAABB0ABHDQAgAUECaiIIIAdGDQAgBCAIai0AAEE4Rw0AIAFBA2oiCCAHRg0AIAQgCGotAABBzABHDQBBACEGQQAhBwJAIAAgAUEJaiIITQ0AIAQgCGotAAAhBwsCQCAAIAFBCmoiCE0NACAEIAhqLQAAQQh0IQYLQQAhCEEAIQkCQCAAIAFBC2oiCk0NACAEIApqLQAAIQkLAkAgACABQQxqIgFNDQAgBCABai0AAEEIdCEICyAIIAlyQRB0IAYgB3IiAHIhAQJAQQAoAqSIgIAADQBBACAAQf//AHFBAWo2AqSIgIAAQQAgAUEOdkH//wBxQQFqNgKoiICAAAsCQCABQYCAgIABcUUNAEEAQQE2AsiIgIAAC0EAQQE2AsyIgIAADAELAkAgBi0AAEHWAEcNACAAIAFBAWoiCEYNACAEIAhqLQAAQdAARw0AIAFBAmoiCCAHRg0AIAQgCGotAABBOEcNACABQQNqIgggB0YNACAEIAhqLQAAQdgARw0AAkAgACACTQ0AIAQgAmotAABBEHFFDQBBAEEBNgLIiICAAAtBACEGQQAhBwJAIAAgAUEMaiIITQ0AIAQgCGotAAAhBwsCQCAAIAFBDWoiCE0NACAEIAhqLQAAIQYLIAZBCHQhCUEAIQZBACEIAkAgACABQQ5qIgpNDQAgBCAKai0AACEIC0EAIAcgCWogCEEQdGpBAWo2AqSIgIAAAkAgACABQQ9qIgdNDQAgBCAHai0AACEGC0EAIQdBACEIAkAgACABQRBqIglNDQAgBCAJai0AACEICyAIQQh0IQgCQCAAIAFBEWoiAU0NACAEIAFqLQAAIQcLQQAgBiAIaiAHQRB0akEBajYCqIiAgAAMAQsCQCAGLQAAQcEARw0AIAAgAUEBaiIIRg0AIAQgCGotAABBzABHDQAgAUECaiIIIAdGDQAgBCAIai0AAEHQAEcNACABQQNqIgggB0YNACAEIAhqLQAAQcgARw0AQQBBATYCyIiAgAAMAQsgBi0AAEHFAEcNACAAIAFBAWoiBkYNACAEIAZqLQAAQdgARw0AIAFBAmoiBiAHRg0AIAQgBmotAABByQBHDQAgAUEDaiIGIAdGDQAgBCAGai0AAEHGAEcNAAJAIAAgAk0NACAEIAJqLQAAQcUARw0AIAAgAUEJaiIGTQ0AIAQgBmotAABB+ABHDQAgACABQQpqIgZNDQAgBCAGai0AAEHpAEcNACAAIAFBC2oiBk0NACAEIAZqLQAAQeYARw0AAkAgACABQQxqIgZNDQAgBCAGai0AAA0BCyABQQ5qQQAgA0F6aiIBIAEgA0sbQQAQg4CAgAAMAQsgAiADQQAQg4CAgAALIAVBAXEgAmogA2ohASADQQAoAuSIgIAAIgAgAmtNDQALCwJAAkBBACgCyIiAgAANAEEAKAKwiICAACEBDAELQQQhAUEAQQQ2ArCIgIAAC0EAIAFBACgCrIiAgABsNgK0iICAAAvIFQQJfwF8BH8BfEEAIQACQAJAQQAoAuSIgIAAIgENAEEAIQJBACEDQQAhBEEAIQUMAQtBACEFQQAtAJCJhIAAQQh0IQMCQCABQQFHDQBBACECQQAhBAwBC0GQiYSAAC0AASEEAkAgAUEDTw0AQQAhAgwBC0GQiYSAAEECai0AAEEIdCECIAFBA0YNAEGQiYSAAEEDai0AACEFC0EMIQZBACEHAkAgBSACciADIARB/wFxckEQdHIiBSABIAUgAUkbIgVBDEkNAEEAIQJBACgC4IiAgAAhBEEAIQgDQAJAIAZBEEYNACABIAZBfGpNDQACQAJAIAQgBmoiAEF8aiIHLQAAQeEARw0AIAEgBkF9ak0NACAAQX1qLQAAQfYARw0AIAEgBkF+ak0NACAAQX5qLQAAQekARw0AQQEhAyAAQX9qLQAAQeYARg0BCwJAIActAABB4QBGDQAgAiEDDAELAkAgASAGQX1qSw0AIAIhAwwBCwJAIABBfWotAABB9gBGDQAgAiEDDAELAkAgASAGQX5qSw0AIAIhAwwBCwJAIABBfmotAABB6QBGDQAgAiEDDAELQQEgAiAAQX9qLQAAQfMARhshAwsCQAJAAkAgBy0AAEHoAEcNACABIAZBfWpNDQAgAEF9ai0AAEHlAEcNACABIAZBfmpNDQAgAEF+ai0AAEHpAEcNACAAQX9qLQAAQeMARg0BCwJAIActAABB6ABHDQAgASAGQX1qTQ0AIABBfWotAABB5QBHDQAgASAGQX5qTQ0AIABBfmotAABB6QBHDQAgAEF/ai0AAEH4AEYNAQsCQCAHLQAAQegARw0AIAEgBkF9ak0NACAAQX1qLQAAQeUARw0AIAEgBkF+ak0NACAAQX5qLQAAQfYARw0AIABBf2otAABB4wBGDQELAkAgBy0AAEHoAEcNACABIAZBfWpNDQAgAEF9ai0AAEHlAEcNACABIAZBfmpNDQAgAEF+ai0AAEH2AEcNACAAQX9qLQAAQfgARg0BCwJAIActAABB6ABHDQAgASAGQX1qTQ0AIABBfWotAABB5QBHDQAgASAGQX5qTQ0AIABBfmotAABB6QBHDQAgAEF/ai0AAEHtAEYNAQsCQCAHLQAAQegARw0AIAEgBkF9ak0NACAAQX1qLQAAQeUARw0AIAEgBkF+ak0NACAAQX5qLQAAQekARw0AIABBf2otAABB8wBGDQELAkAgBy0AAEHtAEcNACABIAZBfWpNDQAgAEF9ai0AAEHpAEcNACABIAZBfmpNDQAgAEF+ai0AAEHmAEcNACAAQX9qLQAAQTFGDQELIActAABB7QBHDQEgASAGQX1qTQ0BIABBfWotAABB8wBHDQEgASAGQX5qTQ0BIABBfmotAABB5gBHDQFBASAIIABBf2otAABBMUYbIQgMAQtBASEICyADIQILIAZBBGoiBiAFTQ0ACyAIQQBHIQAgAkEARyEHCwJAAkAgBw0AIABFDQELQQBBAjYCzIiAgABBAEECNgLEiICAAEEAQoiAgIAwNwKsiICAAEEAQQdBCCAHGzYCoIiAgABBAyEGAkAgAUEUSQ0AQQAoAuCIgIAAIQhEAAAAAAAAAAAhCUEAIQJBBCEGQQAhCkEAIQsDQAJAAkAgCCAGIgRqLQAAIgxBu39qDjEAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEBAQEAAQEBAQEBAAEBAQEAAQsCQAJAAkAgASAETSINDQACQCAMQekARw0AIAEgBEEBaiIGTQ0AIAggBmotAABB8wBHDQAgASAEQQJqIgZNDQAgCCAGai0AAEHwAEcNACABIARBA2oiBk0NACAIIAZqLQAAQeUARw0AQQAhBkEAIQcCQCABIARBCGoiAE0NACAIIABqLQAAQQh0IQcLAkAgASAEQQlqIgBNDQAgCCAAai0AACEGC0EAIQBBACEFAkAgASAEQQpqIgNNDQAgCCADai0AAEEIdCEFCwJAIAEgBEELaiIDTQ0AIAggA2otAAAhAAtBACEDQQAhDAJAIAEgBEEMaiINTQ0AIAggDWotAABBCHQhDAsgBiAHciEGAkAgASAEQQ1qIgdNDQAgCCAHai0AACEDCyAAIAVyIQAgBkEQdCEFQQAhBkEAIQcCQCABIARBDmoiDU0NACAIIA1qLQAAQQh0IQcLIAAgBXIhAAJAIAEgBEEPaiIFTQ0AIAggBWotAAAhBgsgALggBiAHciADIAxyQRB0ciIGuKIiDiAJZEUNBEEAIAY2AqiIgIAAQQAgADYCpIiAgAAgDiEJDAQLAkACQCALDQAgDQ0CAkAgDEGff2oOEAIDAwMDAwMDAwMDAwMDAwADCyABIARBAWoiBk0NAiAIIAZqLQAAQekARw0CIAEgBEECaiIGTQ0CIAggBmotAABB+ABHDQIgASAEQQNqIgZNDQIgCCAGai0AAEHpAEcNAkEAIQsgASAEQQhqIgZNDQUgCCAGai0AACIGQX9qQQNLDQVBACEHQQAgBjYCsIiAgAACQCABIARBCWoiAE0NACAIIABqLQAAIQcLQQAgBzYCrIiAgABBASELIAZBAUcNBUEBIQtBAEEBNgLEiICAAAwFCyANDQEgDEHhAEcNAQsgASAEQQFqIgZNDQAgCCAGai0AAEH1AEcNACABIARBAmoiBk0NACAIIAZqLQAAQfgARw0AIAEgBEEDaiIGTQ0AIAggBmotAABB6QBHDQAgASAEQQRqIgZNDQAgCCAGai0AAEHsAEcNACABIARBBWoiBk0NACAIIAZqLQAAQekARw0AIAEgBEEGaiIGTQ0AIAggBmotAABB4QBHDQAgASAEQQdqIgZNDQAgCCAGai0AAEHyAEcNACABIARBCGoiBk0NACAIIAZqLQAAQfkARw0AIAEgBEEJaiIGTQ0AIAggBmotAABBOkcNACABIARBCmoiBk0NACAIIAZqLQAAQeEARw0AIAEgBEELaiIGTQ0AIAggBmotAABB7ABHDQAgASAEQQxqIgZNDQAgCCAGai0AAEHwAEcNACABIARBDWoiBk0NACAIIAZqLQAAQegARw0AIAEgBEEOaiIGTQ0AIAggBmotAABB4QBGDQELIAggAmohA0H1ACEHQWYhBgNAIAEgAiAGakEeaiIATQ0CIAMgBmoiBUEeai0AACAHQf8BcUcNAiABIABBAWpNDQIgBUEfai0AACAGQZuIgIAAai0AAEcNAiAGQZyIgIAAai0AACEHIAZBAmoiACEGIAANAAsLQQBBATYCyIiAgAAMAQsCQCAKDQBBACEKIA0NASAMQcUARw0BIAEgBEEBaiIGTQ0BIAggBmotAABB+ABHDQEgASAEQQJqIgZNDQEgCCAGai0AAEHpAEcNASABIARBA2oiBk0NASAIIAZqLQAAQeYARw0BAkAgASAEQQRqIgZNDQAgCCAGai0AAA0CCwJAIAEgBEEFaiIGTQ0AIAggBmotAAANAgsgBEEGaiIGIAEgBmtBABCDgICAAEEAKALgiICAACEIC0EBIQoLIAJBAWohAiAEQQFqIQYgBEERakEAKALkiICAACIBTQ0AC0EAKAKwiICAACEGCwJAQQAoAsiIgIAARQ0AQQAgBkEBaiIGNgKwiICAAAtBACAGQQAoAqyIgIAAbDYCtIiAgAALC44DAQZ/QQAhAQJAIABBe0sNACAAQQRqQQAoAoSJgIAASw0AQQAhAkEAKAKAiYCAACAAaiEAQQAoAuSIgIAAIQECQEEALQCIiYCAAEUNAEEAIQJBACEDAkAgASAATQ0AQQAoAuCIgIAAIABqLQAAIQMLAkAgASAAQQFqIgRNDQBBACgC4IiAgAAgBGotAABBCHQhAgtBACEEQQAhBQJAIAEgAEECaiIGTQ0AQQAoAuCIgIAAIAZqLQAAIQULAkAgASAAQQNqIgBNDQBBACgC4IiAgAAgAGotAABBCHQhBAsgAiADciAEIAVyQRB0cg8LAkAgASAATQ0AQQAoAuCIgIAAIABqLQAAQQh0IQILQQAhA0EAIQQCQCABIABBAWoiBU0NAEEAKALgiICAACAFai0AACEECwJAIAEgAEECaiIFTQ0AQQAoAuCIgIAAIAVqLQAAQQh0IQMLQQAhBQJAIAEgAEEDaiIATQ0AQQAoAuCIgIAAIABqLQAAIQULIAMgBCACckEQdHIgBXIhAQsgAQvFBAEIf0EAIQECQCAAQQJqIgJBfUsNACAAQQRqIgNBACgChImAgAAiBEsNAEEAIQVBACgCgImAgAAiBiACaiEBQQAoAuSIgIAAIQICQAJAQQAtAIiJgIAAIgdFDQBBACEFQQAhCAJAIAIgAU0NAEEAKALgiICAACABai0AACEICwJAIAIgAUEBaiIBTQ0AQQAoAuCIgIAAIAFqLQAAQQh0IQULIAUgCHIhBQwBCwJAIAIgAU0NAEEAKALgiICAACABai0AAEEIdCEFC0EAIQgCQCACIAFBAWoiAU0NAEEAKALgiICAACABai0AACEICyAIIAVyIQULQQEhCEEAIQEgAxCGgICAACEDAkACQAJAIAVBf2oOBAIDAAEDC0ECIQgMAQtBBCEICyADRQ0AIABBCGohAAJAIANBBCAIbk0NACAAEIaAgIAAIQALAkACQAJAIAVBfWoOAgABAgsgAEF9Sw0CIABBAmogBEsNAiAGIABqIQACQCAHRQ0AQQAhAUEAIQUCQCACIABNDQBBACgC4IiAgAAgAGotAAAhBQsCQCACIABBAWoiAE0NAEEAKALgiICAACAAai0AAEEIdCEBCyABIAVyDwtBACEBQQAhBQJAIAIgAE0NAEEAKALgiICAACAAai0AAEEIdCEFCwJAIAIgAEEBaiIATQ0AQQAoAuCIgIAAIABqLQAAIQELIAEgBXIPCyAAEIaAgIAADwsgACAETw0AIAIgBiAAaiIATQ0AQQAoAuCIgIAAIABqLQAAIQELIAELCyIBAEGACAsbdXJuOm1wZWc6aGV2YzoyMDE1OmF1eGlkOjEAAHgEbmFtZQANDGltZ2luZm8ud2FzbQFCCAAJaW5wdXRfcHRyAQpyZXN1bHRfcHRyAgVwYXJzZQMKcGFyc2VfdGlmZgQEd2VicAUEaGVpZgYDdDMyBwR0dmFsBxIBAA9fX3N0YWNrX3BvaW50ZXIJCgEABy5yb2RhdGEAOAlwcm9kdWNlcnMBDHByb2Nlc3NlZC1ieQEMVWJ1bnR1IGNsYW5nETE4LjEuMyAoMXVidW50dTEpACwPdGFyZ2V0X2ZlYXR1cmVzAisPbXV0YWJsZS1nbG9iYWxzKwhzaWduLWV4dA==";
+
+const FORMATS = ["Unknown", "PNG", "JPEG", "GIF", "BMP", "WebP", "TIFF", "AVIF", "HEIC"];
+const EXTS = { PNG:["png"], JPEG:["jpg","jpeg","jpe","jfif"], GIF:["gif"], BMP:["bmp","dib"],
+  WebP:["webp"], TIFF:["tif","tiff"], AVIF:["avif"], HEIC:["heic","heif"] };
+const TYPE_LABEL = { PNG:".png", JPEG:".jpg", GIF:".gif", BMP:".bmp", WebP:".webp", TIFF:".tiff", AVIF:".avif", HEIC:".heic" };
+const DPI_SRC =["", "PNG pHYs chunk", "JFIF header", "EXIF metadata", "BMP header", "TIFF tags"];
+const COMP = ["", "lossless", "lossy", "uncompressed"];
+
+let wasm = null;
+const results = [];
+const urls = [];
+
+async function initWasm() {
+  const bytes = Uint8Array.from(atob(WASM_B64), c => c.charCodeAt(0));
+  const { instance } = await WebAssembly.instantiate(bytes, {});
+  wasm = instance.exports;
+}
+
+function analyse(bytes) {
+  const mem = wasm.memory, ptr = wasm.input_ptr();
+  const need = ptr + bytes.length - mem.buffer.byteLength;
+  if (need > 0) mem.grow(Math.ceil(need / 65536));
+  new Uint8Array(mem.buffer, ptr, bytes.length).set(bytes);
+  wasm.parse(bytes.length);
+  const r = new Int32Array(mem.buffer, wasm.result_ptr(), 12);
+  return {
+    format: FORMATS[r[0]] || "Unknown", width: r[1] >>> 0, height: r[2] >>> 0,
+    bpc: r[3], channels: r[4], bpp: r[5],
+    dpiX: r[6] / 100, dpiY: r[7] / 100, dpiSource: DPI_SRC[r[8]] || "",
+    model: r[9], alpha: !!r[10], compression: COMP[r[11]] || ""
+  };
+}
+
+/* ---------- formatting helpers ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const num = n => n.toLocaleString("en-GB");
+const round1 = n => Math.round(n * 10) / 10;
+function bytes(n) {
+  if (n < 1024) return n + " B";
+  const u = ["KB", "MB", "GB", "TB"]; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return (n < 10 ? n.toFixed(2) : n < 100 ? n.toFixed(1) : Math.round(n)) + " " + u[i];
+}
+function modelName(info) {
+  const a = info.alpha;
+  switch (info.model) {
+    case 1: return a ? "greyscale + alpha" : "greyscale";
+    case 2: return a ? "RGBA" : "RGB";
+    case 3: return a ? "indexed palette + transparency" : "indexed palette";
+    case 4: return "CMYK";
+    default: return "";
+  }
+}
+function colourCount(info) {
+  let bits;
+  if (info.model === 3) bits = info.bpp;
+  else if (info.model === 4) return "";
+  else bits = info.bpc * (info.channels - (info.alpha ? 1 : 0));
+  if (!bits) return "";
+  if (bits > 53) return "2^" + bits + " colours";
+  const n = 2 ** bits;
+  if (info.model === 3) return "palette of up to " + num(n) + " colours";
+  return num(n) + " colours";
+}
+
+/* ---------- describe one result for display ---------- */
+function describe(file, info) {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const out = { file, info, ext };
+
+  // File type
+  out.typeMain = info.format === "Unknown" ? "Not recognised" : TYPE_LABEL[info.format];
+  out.typeSub = [ext ? "." + ext : "", bytes(file.size), info.compression].filter(Boolean).join(" · ");
+  if (info.format !== "Unknown" && ext && EXTS[info.format] && !EXTS[info.format].includes(ext))
+    out.typeWarn = `The extension says .${ext} but the bytes are ${info.format}`;
+
+  // Resolution
+  if (info.width && info.height) {
+    const mp = info.width * info.height / 1e6;
+    out.resMain = `${info.width} x ${info.height} pixels`;
+    out.resSub = `${mp >= 0.1 ? mp.toFixed(1) : mp.toFixed(2)} megapixels`;
+  } else { out.resMain = "—"; out.resSub = ""; }
+
+  // DPI
+  if (info.dpiX > 0) {
+    const x = round1(info.dpiX), y = round1(info.dpiY);
+    out.dpiMain = x === y ? `${x} DPI` : `${x} × ${y} DPI`;
+    const wi = info.width / info.dpiX, hi = info.height / info.dpiY;
+    out.dpiSub = `from ${info.dpiSource}`;
+    if (info.width) out.dpiSub += `<br>prints at ${(wi * 2.54).toFixed(1)} × ${(hi * 2.54).toFixed(1)} cm (${wi.toFixed(1)} × ${hi.toFixed(1)} in)`;
+  } else if (info.format !== "Unknown") {
+    out.dpiMain = "72 DPI";
+    out.dpiSub = info.format === "GIF" || info.format === "AVIF" || info.format === "WebP"
+      ? `${info.format} files don’t usually store DPI, so software assumes 72 or 96`
+      : "Software will usually assume 72 or 96";
+  } else { out.dpiMain = "—"; out.dpiSub = ""; }
+
+  // Bit depth
+  if (info.bpp) {
+    out.bitMain = `${info.bpp}-bit`;
+    const parts = [];
+    if (info.model === 3) parts.push(`${info.bpp} bits per pixel index`);
+    else {
+      let s = `${info.bpc} bits × ${info.channels} channel${info.channels > 1 ? "s" : ""}`;
+      const pad = info.bpp - info.bpc * info.channels;
+      if (pad > 0) s += ` + ${pad} unused`;
+      parts.push(s);
+    }
+    const m = modelName(info); if (m) parts[0] += ` (${m})`;
+    const c = colourCount(info); if (c) parts.push(c);
+    out.bitSub = parts.join("<br>");
+    if (info.width && info.height) {
+      const raw = info.width * info.height * info.bpp / 8;
+      out.rawSize = raw;
+      out.bitSub += `<br>uncompressed ${bytes(raw)}`;
+      if (file.size < raw) out.bitSub += ` · ${Math.round((1 - file.size / raw) * 100)}% smaller on disk`;
+    }
+  } else { out.bitMain = "—"; out.bitSub = ""; }
+
+  return out;
+}
+
+function rowHTML(d, idx) {
+  const thumb = `<img class="thumb" src="${urls[idx]}" alt="" loading="lazy"
+    onerror="this.outerHTML='<div class=nothumb>No preview</div>'">`;
+  return `<div class="item">${thumb}<div class="info">
+    <div class="name">${esc(d.file.name)}</div>
+    ${esc(d.typeMain)}<br>${d.resMain}<br>${d.dpiMain}<br>${d.bitMain}</div></div>`;
+}
+
+function render() {
+  const tbody = document.getElementById("rows");
+  tbody.innerHTML = results.length
+    ? results.map(rowHTML).join("")
+    : `<div class="empty">Your images will appear here.</div>`;
+  document.getElementById("count").textContent =
+    results.length ? `${results.length} image${results.length > 1 ? "s" : ""}` : "No images yet";
+  document.getElementById("csv").disabled = document.getElementById("clear").disabled = !results.length;
+}
+
+async function handleFiles(list) {
+  if (!wasm) await ready;
+  for (const file of list) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const info = analyse(buf);
+    urls.push(URL.createObjectURL(file));
+    results.push(describe(file, info));
+    render();
+  }
+}
+
+function downloadCSV() {
+  const head = ["File name","Detected type","Extension","Compression","File size (bytes)","Width (px)","Height (px)",
+    "Megapixels","DPI X","DPI Y","DPI source","Bit depth (bits per pixel)","Bits per channel","Channels",
+    "Colour model","Uncompressed size (bytes)"];
+  const q = v => { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const lines = [head.join(",")];
+  for (const d of results) {
+    const i = d.info;
+    lines.push([d.file.name, TYPE_LABEL[i.format] || "Unknown", d.ext, i.compression, d.file.size, i.width || "", i.height || "",
+      i.width ? (i.width * i.height / 1e6).toFixed(2) : "",
+      i.dpiX ? round1(i.dpiX) : 72, i.dpiY ? round1(i.dpiY) : 72, i.dpiSource,
+      i.bpp || "", i.bpc || "", i.channels || "", modelName(i), d.rawSize ? Math.round(d.rawSize) : ""].map(q).join(","));
+  }
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "image-details.csv"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- wiring ---------- */
+const ready = initWasm().catch(err => {
+  document.getElementById("count").textContent = "Sorry, this browser couldn’t load the image reader."; console.error(err);
+});
+const drop = document.getElementById("drop"), input = document.getElementById("file");
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+input.addEventListener("change", () => { handleFiles([...input.files]); input.value = ""; });
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFiles([...e.dataTransfer.files]));
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+document.getElementById("csv").addEventListener("click", downloadCSV);
+document.getElementById("clear").addEventListener("click", () => {
+  urls.forEach(u => URL.revokeObjectURL(u)); urls.length = 0; results.length = 0; render();
+});
+</script>
+</body>
+</html>
